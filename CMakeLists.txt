@@ -2,7 +2,7 @@
 
 project ("Desafio_ESSS_OpenGL")
 
-add_executable (Desafio_ESSS_OpenGL "src/main.cpp" "src/glad.c")
+add_executable (Desafio_ESSS_OpenGL "src/main.cpp" "src/glad.c" "src/shaders/shader.cpp")
 
 set_property (TARGET Desafio_ESSS_OpenGL PROPERTY CXX_STANDARD 14)
 
