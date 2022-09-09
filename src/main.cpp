@@ -59,6 +59,7 @@ int main()
 
 	// Register callbacks
 	glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
+	glfwSetWindowSizeLimits(window, 800, 600, GLFW_DONT_CARE, GLFW_DONT_CARE);
 
 	// Inicializa o GLAD
 	if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress))
