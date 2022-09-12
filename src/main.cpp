@@ -36,7 +36,7 @@ float lastFrame = 0.0f;
 
 bool firstMouse = true;
 bool move_mouse = false;
-float yaw = 0.0f;
+float yaw = -90.0f;
 float pitch = 0.0f;
 float lastX = 400.0f;
 float lastY = 300.0f;
