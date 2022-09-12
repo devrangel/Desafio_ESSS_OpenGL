@@ -15,6 +15,7 @@
 
 #include "shaders/shader.h"
 #include "shaders/source.h"
+#include "camera.h"
 #include "utils.h"
 
 void processInput(GLFWwindow* window);
@@ -27,20 +28,24 @@ void mouse_callback(GLFWwindow* window, double xpos, double ypos);
 void mouse_button_callback(GLFWwindow* window, int button, int action, int mods);
 void scroll_callback(GLFWwindow* window, double xoffset, double yoffset);
 
-glm::vec3 cameraPos = glm::vec3(0.0f, 0.0f, 3.0f);
-glm::vec3 cameraFront = glm::vec3(0.0f, 0.0f, -1.0f);
-glm::vec3 cameraUp = glm::vec3(0.0f, 1.0f, 0.0f);
+/*
+ * Screen size
+ */
+const unsigned int SCREEN_WIDTH = 800;
+const unsigned int SCREEN_HEIGHT = 600;
+
+/*
+ * Initial values for Camera
+ */
+Camera camera(
+	glm::vec3(0.0f, 0.0f, 3.0f),
+	glm::vec3(0.0f, 0.0f, -1.0f),
+	glm::vec3(0.0f, 1.0f, 0.0f),
+	SCREEN_WIDTH / 2.0f,
+	SCREEN_HEIGHT / 2.0f);
 
 float deltaTime = 0.0f;
 float lastFrame = 0.0f;
-
-bool firstMouse = true;
-bool move_mouse = false;
-float yaw = -90.0f;
-float pitch = 0.0f;
-float lastX = 400.0f;
-float lastY = 300.0f;
-float fov = 45.0f;
 
 int main()
 {
@@ -58,7 +63,7 @@ int main()
 #endif // APPLE
 
 	// Cria uma janela com o contexto do OpenGL e define o contexto como current
-	GLFWwindow* window = glfwCreateWindow(800, 600, "Desafio ESSS OpenGL", nullptr, nullptr);
+	GLFWwindow* window = glfwCreateWindow(SCREEN_WIDTH, SCREEN_HEIGHT, "Desafio ESSS OpenGL", nullptr, nullptr);
 	if (window == nullptr)
 	{
 		// TODO: add spdlog message
@@ -185,11 +190,11 @@ int main()
 
 		glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
 
-		glm::mat4 projectionMatrix = glm::perspective(glm::radians(fov), 800.0f / 600.0f, 0.1f, 100.0f);
+		glm::mat4 projectionMatrix = glm::perspective(glm::radians(camera.m_Zoom), (float)SCREEN_WIDTH / float(SCREEN_HEIGHT), 0.1f, 100.0f);
 		int projectionLocation = glGetUniformLocation(shader.getId(), "uProjection");
 		glUniformMatrix4fv(projectionLocation, 1, GL_FALSE, glm::value_ptr(projectionMatrix));
 
-		glm::mat4 viewMatrix = glm::lookAt(cameraPos, cameraPos + cameraFront, cameraUp);
+		glm::mat4 viewMatrix = camera.getViewMatrix();
 		int viewLocaltion = glGetUniformLocation(shader.getId(), "uView");
 		glUniformMatrix4fv(viewLocaltion, 1, GL_FALSE, glm::value_ptr(viewMatrix));
 
@@ -204,28 +209,7 @@ int main()
 
 void processInput(GLFWwindow* window)
 {
-	if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
-	{
-		glfwSetWindowShouldClose(window, true);
-	}
-
-	const float cameraSpeed = 2.5f * deltaTime;
-	if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS)
-	{
-		cameraPos += cameraSpeed * cameraFront;
-	}
-	if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS)
-	{
-		cameraPos -= cameraSpeed * cameraFront;
-	}
-	if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS)
-	{
-		cameraPos -= glm::normalize(glm::cross(cameraFront, cameraUp)) * cameraSpeed;
-	}
-	if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)
-	{
-		cameraPos += glm::normalize(glm::cross(cameraFront, cameraUp)) * cameraSpeed;
-	}
+	camera.processKeyboard(window);
 }
 
 /*
@@ -236,72 +220,17 @@ void framebuffer_size_callback(GLFWwindow* window, int width, int height)
 	glViewport(0, 0, width, height);
 }
 
-void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
-{
-	if (button == GLFW_MOUSE_BUTTON_RIGHT && action == GLFW_PRESS)
-	{
-		glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
-		move_mouse = true;
-	}
-	else if (button == GLFW_MOUSE_BUTTON_RIGHT && action == GLFW_RELEASE)
-	{
-		glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
-		move_mouse = false;
-	}
-}
-
-// TODO: needs improvements
 void mouse_callback(GLFWwindow* window, double xpos, double ypos)
 {
-	if (move_mouse)
-	{
-		if (firstMouse)
-		{
-			lastX = xpos;
-			lastY = ypos;
-			firstMouse = false;
-		}
+	camera.mouseCallback(window, xpos, ypos);
+}
 
-		float xoffset = xpos - lastX;
-		float yoffset = lastY - ypos;
-		lastX = xpos;
-		lastY = ypos;
-
-		const float sensitivy = 0.05f;
-		xoffset *= sensitivy;
-		yoffset *= sensitivy;
-
-		yaw += xoffset;
-		pitch += yoffset;
-
-		if (pitch > 89.0f)
-		{
-			pitch = 89.0f;
-		}
-
-		if (pitch < -89.0f)
-		{
-			pitch = -89.0f;
-		}
-
-		glm::vec3 direction{};
-		direction.x = cos(glm::radians(yaw)) * cos(glm::radians(pitch));
-		direction.y = sin(glm::radians(pitch));
-		direction.z = sin(glm::radians(yaw)) * cos(glm::radians(pitch));
-
-		cameraFront = glm::normalize(direction);
-	}
+void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
+{
+	camera.mouseButtonCallback(window, button, action, mods);
 }
 
 void scroll_callback(GLFWwindow* window, double xoffset, double yoffset)
 {
-	fov -= (float)yoffset;
-	if (fov < 1.0f)
-	{
-		fov = 1.0f;
-	}
-	if (fov > 90.0f)
-	{
-		fov = 90.0f;
-	}
+	camera.scrollCallback(window, xoffset, yoffset);
 }
