@@ -23,6 +23,8 @@ void processInput(GLFWwindow* window);
  * Callbacks
  */
 void framebuffer_size_callback(GLFWwindow* window, int width, int height);
+void mouse_callback(GLFWwindow* window, double xpos, double ypos);
+void mouse_button_callback(GLFWwindow* window, int button, int action, int mods);
 
 glm::vec3 cameraPos = glm::vec3(0.0f, 0.0f, 3.0f);
 glm::vec3 cameraFront = glm::vec3(0.0f, 0.0f, -1.0f);
@@ -30,6 +32,13 @@ glm::vec3 cameraUp = glm::vec3(0.0f, 1.0f, 0.0f);
 
 float deltaTime = 0.0f;
 float lastFrame = 0.0f;
+
+bool firstMouse = true;
+bool move_mouse = false;
+float yaw = 0.0f;
+float pitch = 0.0f;
+float lastX = 400.0f;
+float lastY = 300.0f;
 
 int main()
 {
@@ -60,6 +69,8 @@ int main()
 	// Register callbacks
 	glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
 	glfwSetWindowSizeLimits(window, 800, 600, GLFW_DONT_CARE, GLFW_DONT_CARE);
+	glfwSetCursorPosCallback(window, mouse_callback);
+	glfwSetMouseButtonCallback(window, mouse_button_callback);
 
 	// Inicializa o GLAD
 	if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress))
@@ -220,4 +231,61 @@ void processInput(GLFWwindow* window)
 void framebuffer_size_callback(GLFWwindow* window, int width, int height)
 {
 	glViewport(0, 0, width, height);
+}
+
+void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
+{
+	if (button == GLFW_MOUSE_BUTTON_RIGHT && action == GLFW_PRESS)
+	{
+		glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+		move_mouse = true;
+	}
+	else if (button == GLFW_MOUSE_BUTTON_RIGHT && action == GLFW_RELEASE)
+	{
+		glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+		move_mouse = false;
+	}
+}
+
+// TODO: needs improvements
+void mouse_callback(GLFWwindow* window, double xpos, double ypos)
+{
+	if (move_mouse)
+	{
+		if (firstMouse)
+		{
+			lastX = xpos;
+			lastY = ypos;
+			firstMouse = false;
+		}
+
+		float xoffset = xpos - lastX;
+		float yoffset = lastY - ypos;
+		lastX = xpos;
+		lastY = ypos;
+
+		const float sensitivy = 0.05f;
+		xoffset *= sensitivy;
+		yoffset *= sensitivy;
+
+		yaw += xoffset;
+		pitch += yoffset;
+
+		if (pitch > 89.0f)
+		{
+			pitch = 89.0f;
+		}
+
+		if (pitch < -89.0f)
+		{
+			pitch = -89.0f;
+		}
+
+		glm::vec3 direction{};
+		direction.x = cos(glm::radians(yaw)) * cos(glm::radians(pitch));
+		direction.y = sin(glm::radians(pitch));
+		direction.z = sin(glm::radians(yaw)) * cos(glm::radians(pitch));
+
+		cameraFront = glm::normalize(direction);
+	}
 }
