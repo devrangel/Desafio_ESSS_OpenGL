@@ -1,5 +1,6 @@
 ﻿#include <iostream>
 #include <memory>
+#include <windows.h>
 
 #include "glad/glad.h"
 #include "GLFW/glfw3.h"
@@ -17,6 +18,13 @@
 #include "shaders/source.h"
 #include "camera.h"
 #include "utils.h"
+
+/*
+ * Forces nvidia's driver to be used
+ */
+extern "C" {
+	__declspec(dllexport) DWORD NvOptimusEnablement = 0x00000001;
+}
 
 void processInput(GLFWwindow* window);
 
@@ -38,11 +46,13 @@ const unsigned int SCREEN_HEIGHT = 600;
  * Initial values for Camera
  */
 Camera camera(
-	glm::vec3(0.0f, 0.0f, 3.0f),
+	glm::vec3(200.0f, 500.0f, 200.0f),
 	glm::vec3(0.0f, 0.0f, -1.0f),
 	glm::vec3(0.0f, 1.0f, 0.0f),
 	SCREEN_WIDTH / 2.0f,
-	SCREEN_HEIGHT / 2.0f);
+	SCREEN_HEIGHT / 2.0f,
+	-150.0f,
+	-40.0f);
 
 float deltaTime = 0.0f;
 float lastFrame = 0.0f;
@@ -89,66 +99,49 @@ int main()
 	}
 
 	/*
-	 * Rendering stuff
+	 * Creating a grid based with the loaded heightmap
+	 * Each pixel corresponds to a unit of measurement in the grid
+	 * For example: an image of 800 x 600 has 800 row and 600 columns
 	 */
-	float vertices[] = {
-		// Position			// Texture Coords
-		 0.5f,  0.5f, 0.0f, 1.0f, 1.0f, // top right
-		 0.5f, -0.5f, 0.0f, 1.0f, 0.0f, // bottom right
-		-0.5f, -0.5f, 0.0f, 0.0f, 0.0f, // bottom left
-		-0.5f,  0.5f, 0.0f, 0.0f, 1.0f  // top left
-	};
+	int width = 0;
+	int height = 0;
+	int nrChannels = 0;
 
-	unsigned int indices[] = {
-		0, 1, 3, // first triangle
-		1, 2, 3  // second triangle
-	};
+	std::vector<float> vertices;
 
-	/*
-	 * VAO e VBO
-	 */
-	unsigned int VAO;
-	glGenVertexArrays(1, &VAO);
-	glBindVertexArray(VAO);
-
-	unsigned int VBO;
-	glGenBuffers(1, &VBO);
-	glBindBuffer(GL_ARRAY_BUFFER, VBO);
-	glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
-
-	// Position
-	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)0);
-	glEnableVertexAttribArray(0);
-
-	// Texture
-	glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)(3 * sizeof(float)));
-	glEnableVertexAttribArray(1);
-
-	// Indices
-	unsigned int EBO;
-	glGenBuffers(1, &EBO);
-	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
-	glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_STATIC_DRAW);
-
-	/*
-	 * Texture
-	 */
-	unsigned int texture;
-	glGenTextures(1, &texture);
-	glActiveTexture(GL_TEXTURE0);
-	glBindTexture(GL_TEXTURE_2D, texture);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-
-	int width, height, nrChannels;
 	stbi_set_flip_vertically_on_load(true);
-	
 	unsigned char* data = stbi_load("textures/heightmap.png", &width, &height, &nrChannels, 0);
 	if (data)
 	{
-		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
+		std::cout << "Image loaded" << std::endl;
+
+		std::cout << nrChannels << std::endl;
+
+		/*
+		 * Vertex Generation
+		 */
+		float yScale = 64.0f / 256.0f;
+		float yShift = 16.0f;
+
+		float heightInMin = -height / 2.0f;
+		float heightInMax = height / 2.0;
+		float widthInMin = -width / 2.0f;
+		float widthInMax = width / 2.0;
+		float outMin = -1;
+		float outMax = 1;
+
+		for (unsigned int y = 0; y < height; y++)
+		{
+			for (unsigned int x = 0; x < width; x++)
+			{
+				unsigned char* texel = data + (x + width * y) * nrChannels;
+				unsigned char elevation = texel[0];
+
+				vertices.push_back(heightInMin + y);
+				vertices.push_back((int)elevation * yScale - yShift);
+				vertices.push_back(widthInMin + x);
+			}
+		}
 	}
 	else
 	{
@@ -156,10 +149,52 @@ int main()
 	}
 	stbi_image_free(data);
 
+	/*
+	 * Indices
+	 */
+	std::vector<unsigned int> indices;
+	for (unsigned int i = 0; i < height - 1; i++)
+	{
+		for (unsigned int j = 0; j < width; j++)
+		{
+			for (unsigned int k = 0; k < 2; k++)
+			{
+				indices.push_back(j + width * (i + k));
+			}
+		}
+	}
+
+	const unsigned int NUM_STRIPS = height - 1;
+	const unsigned int NUM_VERTS_PER_STRIP = width * 2;
+
+	/*
+	 * VAO
+	 */
+	unsigned int VAO;
+	glGenVertexArrays(1, &VAO);
+	glBindVertexArray(VAO);
+
+	/*
+	 * VBO
+	 */
+	unsigned int VBO;
+	glGenBuffers(1, &VBO);
+	glBindBuffer(GL_ARRAY_BUFFER, VBO);
+	glBufferData(GL_ARRAY_BUFFER, vertices.size() * sizeof(float), &vertices[0], GL_STATIC_DRAW);
+
+	// Position
+	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
+	glEnableVertexAttribArray(0);
+
+	// Indices
+	unsigned int EBO;
+	glGenBuffers(1, &EBO);
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
+	glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices.size() * sizeof(unsigned int), &indices[0], GL_STATIC_DRAW);
+
 	Shader shader(ShaderSource::vertexShaderSource, ShaderSource::fragmentShaderSource);
 
 	shader.useProgram();
-	shader.setUniformInt("uTexture", 0);
 
 	/*
 	 * Model, View, Projection Matrix
@@ -172,6 +207,8 @@ int main()
 	 * glEnable
 	 */
 	glEnable(GL_DEPTH_TEST);
+
+	glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
 
 	while (!glfwWindowShouldClose(window))
 	{
@@ -186,17 +223,25 @@ int main()
 		processInput(window);
 
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-		glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
+		glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
 
-		glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
-
-		glm::mat4 projectionMatrix = glm::perspective(glm::radians(camera.m_Zoom), (float)SCREEN_WIDTH / float(SCREEN_HEIGHT), 0.1f, 100.0f);
+		glm::mat4 projectionMatrix = glm::perspective(glm::radians(camera.m_Zoom), (float)SCREEN_WIDTH / float(SCREEN_HEIGHT), 0.1f, 100000.0f);
 		int projectionLocation = glGetUniformLocation(shader.getId(), "uProjection");
 		glUniformMatrix4fv(projectionLocation, 1, GL_FALSE, glm::value_ptr(projectionMatrix));
 
 		glm::mat4 viewMatrix = camera.getViewMatrix();
 		int viewLocaltion = glGetUniformLocation(shader.getId(), "uView");
 		glUniformMatrix4fv(viewLocaltion, 1, GL_FALSE, glm::value_ptr(viewMatrix));
+
+		for (int strip = 0; strip < NUM_STRIPS; ++strip)
+		{
+			glDrawElements(
+				GL_TRIANGLE_STRIP,
+				NUM_VERTS_PER_STRIP,
+				GL_UNSIGNED_INT,
+				(void*)(sizeof(unsigned) * NUM_VERTS_PER_STRIP * strip));
+			
+		}
 
 		glfwSwapBuffers(window);
 
