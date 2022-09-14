@@ -8,7 +8,11 @@
 class Shader
 {
 public:
-	Shader(const char* vertexSource, const char* fragmentSource);
+	Shader(
+		const char* vertexSource,
+		const char* fragmentSource,
+		const char* tessControlShaderSource = nullptr,
+		const char* tessEvaluationShaderSource = nullptr);
 
 	GLuint getId() const;
 	void useProgram();
@@ -21,5 +25,5 @@ private:
 	GLuint m_Id;
 
 	GLuint compileShader(GLenum shaderType, const GLchar* const* shaderSourceCode) const;
-	GLuint createProgram(GLuint vertexShader, GLuint fragmentShader) const;
+	GLvoid checkCompileErros(GLuint shader, const std::string name) const;
 };

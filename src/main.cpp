@@ -64,8 +64,8 @@ int main()
 	{
 		return -1;
 	}
-	glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
-	glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
+	glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
+	glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 1);
 	glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 
 #ifdef APPLE
@@ -98,6 +98,12 @@ int main()
 		return -1;
 	}
 
+	Shader shader(
+		ShaderSource::vertexShaderSource,
+		ShaderSource::fragmentShaderSource,
+		ShaderSource::tesselletionControlShaderSource,
+		ShaderSource::tesselletionEvaluationShaderSource);
+
 	/*
 	 * Creating a grid based with the loaded heightmap
 	 * Each pixel corresponds to a unit of measurement in the grid
@@ -107,39 +113,62 @@ int main()
 	int height = 0;
 	int nrChannels = 0;
 
+	/*
+	 * Buffer for Heightmap Texture
+	 */
+	unsigned int texture;
+	glGenTextures(1, &texture);
+	glActiveTexture(GL_TEXTURE0);
+	glBindTexture(GL_TEXTURE_2D, texture);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+	unsigned int rez = 20;
 	std::vector<float> vertices;
 
 	stbi_set_flip_vertically_on_load(true);
 	unsigned char* data = stbi_load("textures/heightmap.png", &width, &height, &nrChannels, 0);
 	if (data)
 	{
-		std::cout << "Image loaded" << std::endl;
-
-		std::cout << nrChannels << std::endl;
+		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
+		glGenerateMipmap(GL_TEXTURE_2D);
+		shader.setUniformInt("heightMap", 0);
 
 		/*
 		 * Vertex Generation
 		 */
-		float yScale = 64.0f / 256.0f;
-		float yShift = 16.0f;
-
 		float heightInMin = -height / 2.0f;
-		float heightInMax = height / 2.0;
 		float widthInMin = -width / 2.0f;
-		float widthInMax = width / 2.0;
-		float outMin = -1;
-		float outMax = 1;
 
-		for (unsigned int y = 0; y < height; y++)
+		for (unsigned int i = 0; i < rez - 1; i++)
 		{
-			for (unsigned int x = 0; x < width; x++)
+			for (unsigned int j = 0; j < rez - 1; j++)
 			{
-				unsigned char* texel = data + (x + width * y) * nrChannels;
-				unsigned char elevation = texel[0];
+				vertices.push_back(widthInMin + width * i / (float)rez);
+				vertices.push_back(0.0f);
+				vertices.push_back(heightInMin + height * j / (float)rez);
+				vertices.push_back(i / (float)rez);
+				vertices.push_back(j / (float)rez);
 
-				vertices.push_back(heightInMin + y);
-				vertices.push_back((int)elevation * yScale - yShift);
-				vertices.push_back(widthInMin + x);
+				vertices.push_back(widthInMin + width * (i + 1) / (float)rez);
+				vertices.push_back(0.0f);
+				vertices.push_back(heightInMin + height * j / (float)rez);
+				vertices.push_back((i + 1) / (float)rez);
+				vertices.push_back(j / (float)rez);
+
+				vertices.push_back(widthInMin + width * i / (float)rez);
+				vertices.push_back(0.0f);
+				vertices.push_back(heightInMin + height * (j + 1) / (float)rez);
+				vertices.push_back(i / (float)rez);
+				vertices.push_back((j + 1) / (float)rez);
+
+				vertices.push_back(widthInMin + width * (i + 1) / (float)rez);
+				vertices.push_back(0.0f);
+				vertices.push_back(heightInMin + height * (j + 1) / (float)rez);
+				vertices.push_back((i + 1) / (float)rez);
+				vertices.push_back((j + 1) / (float)rez);
 			}
 		}
 	}
@@ -148,24 +177,6 @@ int main()
 		std::cout << "Failed to load texture" << std::endl;
 	}
 	stbi_image_free(data);
-
-	/*
-	 * Indices
-	 */
-	std::vector<unsigned int> indices;
-	for (unsigned int i = 0; i < height - 1; i++)
-	{
-		for (unsigned int j = 0; j < width; j++)
-		{
-			for (unsigned int k = 0; k < 2; k++)
-			{
-				indices.push_back(j + width * (i + k));
-			}
-		}
-	}
-
-	const unsigned int NUM_STRIPS = height - 1;
-	const unsigned int NUM_VERTS_PER_STRIP = width * 2;
 
 	/*
 	 * VAO
@@ -183,16 +194,14 @@ int main()
 	glBufferData(GL_ARRAY_BUFFER, vertices.size() * sizeof(float), &vertices[0], GL_STATIC_DRAW);
 
 	// Position
-	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
+	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)0);
 	glEnableVertexAttribArray(0);
 
-	// Indices
-	unsigned int EBO;
-	glGenBuffers(1, &EBO);
-	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
-	glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices.size() * sizeof(unsigned int), &indices[0], GL_STATIC_DRAW);
+	// TexCoord
+	glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)(3 * sizeof(float)));
+	glEnableVertexAttribArray(1);
 
-	Shader shader(ShaderSource::vertexShaderSource, ShaderSource::fragmentShaderSource);
+	glPatchParameteri(GL_PATCH_VERTICES, 4);
 
 	shader.useProgram();
 
@@ -233,15 +242,7 @@ int main()
 		int viewLocaltion = glGetUniformLocation(shader.getId(), "uView");
 		glUniformMatrix4fv(viewLocaltion, 1, GL_FALSE, glm::value_ptr(viewMatrix));
 
-		for (int strip = 0; strip < NUM_STRIPS; ++strip)
-		{
-			glDrawElements(
-				GL_TRIANGLE_STRIP,
-				NUM_VERTS_PER_STRIP,
-				GL_UNSIGNED_INT,
-				(void*)(sizeof(unsigned) * NUM_VERTS_PER_STRIP * strip));
-			
-		}
+		glDrawArrays(GL_PATCHES, 0, 4 * rez * rez);
 
 		glfwSwapBuffers(window);
 
