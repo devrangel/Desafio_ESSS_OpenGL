@@ -36,6 +36,7 @@ public:
 		, m_MouseButton(false)
 		, m_LastX(lastX)
 		, m_LastY(lastY)
+		, m_WireframeMode(false)
 	{
 		this->updateCameraVectors();
 	}
@@ -50,6 +51,20 @@ public:
 		if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
 		{
 			glfwSetWindowShouldClose(window, true);
+		}
+		
+		if (glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS)
+		{
+			if (m_WireframeMode == false)
+			{
+				glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+				this->m_WireframeMode = true;
+			}
+			else
+			{
+				glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+				this->m_WireframeMode = false;
+			}
 		}
 
 		// Calculate de delta time in order to make a smooth moviment
@@ -153,6 +168,8 @@ private:
 
 	float m_LastX;
 	float m_LastY;
+
+	bool m_WireframeMode;
 
 	void updateCameraVectors()
 	{
