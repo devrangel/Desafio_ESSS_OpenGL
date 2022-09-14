@@ -223,7 +223,7 @@ int main()
 		 * Calculate the time each frame took to render
 		 * This value is used to keep a smooth camera moviment
 		 */
-		float currentFrame = glfwGetTime();
+		float currentFrame = static_cast<float>(glfwGetTime());
 		deltaTime = currentFrame - lastFrame;
 		lastFrame = currentFrame;
 
