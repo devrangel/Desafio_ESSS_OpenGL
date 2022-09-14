@@ -105,15 +105,6 @@ int main()
 		ShaderSource::tesselletionEvaluationShaderSource);
 
 	/*
-	 * Creating a grid based with the loaded heightmap
-	 * Each pixel corresponds to a unit of measurement in the grid
-	 * For example: an image of 800 x 600 has 800 row and 600 columns
-	 */
-	int width = 0;
-	int height = 0;
-	int nrChannels = 0;
-
-	/*
 	 * Buffer for Heightmap Texture
 	 */
 	unsigned int texture;
@@ -124,6 +115,10 @@ int main()
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+	int width = 0;
+	int height = 0;
+	int nrChannels = 0;
 
 	unsigned int rez = 20;
 	std::vector<float> vertices;
