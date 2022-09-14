@@ -1,6 +1,7 @@
 ﻿#include <iostream>
 #include <memory>
 #include <windows.h>
+#include <vector>
 
 #include "glad/glad.h"
 #include "GLFW/glfw3.h"
@@ -17,7 +18,6 @@
 #include "shaders/shader.h"
 #include "shaders/source.h"
 #include "camera.h"
-#include "utils.h"
 
 /*
  * Forces nvidia's driver to be used
